@@ -1,6 +1,6 @@
 # AIQuery - Database Querying Solution
 
-![AIQuery Logo](app/static/img/logo.png)
+![AIQuery Logo](app/static/img/icon.png)
 
 A Flask-based web application that allows querying multiple database types (PostgreSQL, MySQL, Oracle) with natural language processing capabilities.
 
