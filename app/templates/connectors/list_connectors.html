@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>My Database Connectors</h1>
+    <a href="{{ url_for('connectors.add_connector') }}" class="btn btn-success mb-3">Add New Connector</a>
+
+    {% if connectors %}
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Host</th>
+                    <th>Port</th>
+                    <th>Database</th>
+                    <th>Username</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for connector in connectors %}
+                    <tr>
+                        <td>{{ connector.name }}</td>
+                        <td>{{ connector.db_type.name.replace('_', ' ').title() }}</td>
+                        <td>{{ connector.host }}</td>
+                        <td>{{ connector.port }}</td>
+                        <td>{{ connector.database }}</td>
+                        <td>{{ connector.db_username }}</td>
+                        <td>
+                            <a href="{{ url_for('connectors.edit_connector', connector_id=connector.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                            {# Delete button using a small form to send POST request #}
+                            <form action="{{ url_for('connectors.delete_connector', connector_id=connector.id) }}" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete connector \'{{ connector.name }}\'?');">
+                                {% if config.WTF_CSRF_ENABLED %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% endif %}
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>You haven't added any database connectors yet.</p>
+    {% endif %}
+{% endblock %}

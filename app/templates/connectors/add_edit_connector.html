@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import 'bootstrap_wtf.html' as wtf %} {# Use our local macro file #}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/connector_validation.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+    <h1>{{ title }}</h1>
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form id="connector-form" action="{{ form_action }}" method="post" novalidate>
+                        {{ form.hidden_tag() }}
+                        {{ wtf.render_field(form.name) }} {# Use wtf.render_field #}
+                        {{ wtf.render_field(form.db_type) }}
+                        {{ wtf.render_field(form.host) }}
+                        {{ wtf.render_field(form.port) }}
+                        {{ wtf.render_field(form.database) }}
+                        {{ wtf.render_field(form.db_username) }}
+                        {{ wtf.render_field(form.db_password) }}
+                        
+                        <div class="d-flex align-items-center mt-4">
+                            <button type="button" id="test-connection" class="btn btn-info me-3">
+                                <span id="test-spinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                Test Connection
+                            </button>
+                            <div id="connection-status"></div>
+                        </div>
+
+                        <div class="mt-4">
+                            <button type="submit" id="save-button" class="btn btn-primary" disabled>
+                                Save Connector
+                            </button>
+                            <a href="{{ url_for('connectors.list_connectors') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h5 class="card-title">Connector Details</h5>
+                    <p class="card-text">
+                        Fill in the details for your database connection.
+                        <ul>
+                            <li>Test connection before saving</li>
+                            <li>Save only available after successful test</li>
+                        </ul>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

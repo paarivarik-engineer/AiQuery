@@ -1,0 +1,64 @@
+/* Custom CSS styles can go here */
+body {
+    padding-top: 56px; /* Adjust based on navbar height if fixed-top */
+}
+
+/* Add more styles as needed */
+
+/* Query Page Layout */
+.query-page-container {
+    height: calc(100vh - 100px); /* Attempt to fill viewport height minus navbar */
+}
+
+.query-form-area {
+    /* Let content define height, but don't let it grow */
+    flex-shrink: 0;
+}
+
+.query-form-area .card-body {
+    /* Ensure internal flex layout works */
+    display: flex;
+    flex-direction: column;
+}
+
+.query-editor-wrapper {
+    /* Controls the scrollable editor area */
+    overflow-y: auto;
+    flex-grow: 1; /* Allow it to take space */
+}
+
+.query-results-area {
+    /* Takes remaining space */
+    flex-grow: 1;
+    min-height: 0; /* Important for flex-grow in column layout */
+    display: flex; /* Use flex to make card fill height */
+    flex-direction: column;
+}
+.query-results-area .card {
+     flex-grow: 1; /* Make card fill the results area */
+     min-height: 0; /* Allow card to shrink if needed */
+}
+
+.query-results-area .card-body {
+    overflow-y: auto; /* Make results scrollable */
+    padding: 0;
+}
+
+/* Results Table Styling */
+.query-results-table-container .table {
+    margin-bottom: 0; /* Remove default bottom margin */
+    font-size: 0.9rem; /* Slightly smaller font */
+}
+
+.query-results-table-container thead th {
+    position: sticky; /* Make header sticky */
+    top: 0;           /* Stick to the top of the scrollable container */
+    z-index: 1;       /* Ensure header stays above table body */
+    background-color: #343a40; /* Match table-dark background */
+}
+
+.query-results-table-container td,
+.query-results-table-container th {
+    padding: 0.5rem 0.75rem; /* Adjust cell padding */
+    white-space: nowrap;    /* Prevent text wrapping */
+}

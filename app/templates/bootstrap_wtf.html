@@ -1,0 +1,62 @@
+{% macro render_field(field, form_type="basic", horizontal_columns=('lg', 2, 10), button_map={}) %}
+    {# Renders a single field. #}
+    {# This is a simplified version. For full features, see libraries like bootstrap-flask #}
+
+    {% if field.widget.input_type == 'checkbox' %}
+        <div class="mb-3 form-check">
+            {{ field(class="form-check-input") }}
+            {{ field.label(class="form-check-label") }}
+        </div>
+    {% elif field.type == 'SubmitField' %}
+         {# Render as a button element #}
+         <button type="submit" id="{{ field.id }}" name="{{ field.name }}" class="btn btn-primary {{ button_map.get(field.id, '') }}" value="{{ field.label.text }}">
+             {{ field.label.text }}
+         </button>
+    {% else %}
+        <div class="mb-3">
+            {{ field.label(class="form-label") }}
+            {{ field(class="form-control" + (" is-invalid" if field.errors else "")) }}
+            {% if field.errors %}
+                <div class="invalid-feedback">
+                    {% for error in field.errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% if field.description %}
+                <small class="form-text text-muted">{{ field.description }}</small>
+            {% endif %}
+        </div>
+    {% endif %}
+{% endmacro %}
+
+
+{% macro quick_form(form,
+                    action=request.full_path,
+                    method="post",
+                    extra_classes=None,
+                    role="form",
+                    form_type="basic",
+                    horizontal_columns=('lg', 2, 10),
+                    enctype=None,
+                    button_map={},
+                    id="",
+                    novalidate=False,
+                    render_kw={}) %}
+    {# Renders a whole form. #}
+    {# This is a simplified version. For full features, see libraries like bootstrap-flask #}
+
+    <form {% if id %}id="{{id}}"{% endif %}
+          {% if action %}action="{{action}}"{% endif %}
+          method="{{method}}"
+          {% if extra_classes %}class="{{extra_classes}}"{% endif %}
+          {% if role %}role="{{role}}"{% endif %}
+          {% if enctype %}enctype="{{enctype}}"{% endif %}
+          {% if novalidate %}novalidate{% endif %}
+          {% for key, value in render_kw.items() %}{{key}}="{{value}}"{% endfor %}>
+        {{ form.hidden_tag() }}
+        {% for field in form if not field.widget.input_type == 'hidden' %}
+            {{ render_field(field, form_type=form_type, horizontal_columns=horizontal_columns, button_map=button_map) }}
+        {% endfor %}
+    </form>
+{% endmacro %}
