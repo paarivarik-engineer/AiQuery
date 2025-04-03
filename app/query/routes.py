@@ -1,4 +1,6 @@
-from flask import render_template, redirect, url_for, flash, request, current_app, abort, jsonify # Added jsonify
+from flask import render_template, redirect, url_for, flash, request, current_app, abort, jsonify
+from app.utils.audit_logger import log_audit_event
+from app.models import AuditActionType
 from flask_login import current_user, login_required
 from app import db
 from app.query import bp
@@ -107,6 +109,12 @@ def query_interface():
             if query_mode == 'sql':
                 sql_to_execute = query_input
                 logger.info(f"Executing direct SQL query: {sql_to_execute}")
+                # Log the SQL query execution
+                log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                    'connector_id': connector.id,
+                    'query': sql_to_execute,
+                    'mode': 'direct_sql'
+                })
             elif query_mode == 'nl':
                 logger.info("Processing natural language query...")
                 if not client:
@@ -224,6 +232,15 @@ Respond ONLY with the SQL query, without any explanation, comments, or markdown 
                         logger.info(f"Query executed successfully in {exec_time}ms")
                         logger.info(f"Returned {row_count} rows with columns: {headers}")
                         logger.debug(f"First row sample: {results.iloc[0].to_dict() if row_count > 0 else 'No rows'}")
+                        
+                        # Log successful query execution
+                        log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                            'connector_id': connector.id,
+                            'query': sql_to_execute,
+                            'execution_time_ms': exec_time,
+                            'row_count': row_count,
+                            'mode': query_mode
+                        })
                     else:
                         logger.info(f"Command executed successfully in {exec_time}ms (no rows returned)")
                         # flash('Command executed successfully (no rows returned).', 'info') # REMOVED
@@ -235,14 +252,37 @@ Respond ONLY with the SQL query, without any explanation, comments, or markdown 
         except sqlalchemy_exc.OperationalError as e: # Catch connection errors first
             error_message = f"Connection Failed: {getattr(e, 'orig', e)}"
             logger.error(f"Database connection failed: {error_message}")
+            # Log failed connection attempt
+            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                'connector_id': connector.id if connector else None,
+                'error': error_message,
+                'status': 'failed',
+                'mode': query_mode
+            })
             # flash('Failed to connect to database...', 'danger') # REMOVED
         except sqlalchemy_exc.SQLAlchemyError as e: # Catch query execution errors
             error_message = f"Query Execution Error: {getattr(e, 'orig', e)}"
             logger.error(f"SQLAlchemyError during query execution: {error_message}")
+            # Log failed query execution
+            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                'connector_id': connector.id,
+                'query': sql_to_execute,
+                'error': error_message,
+                'status': 'failed',
+                'mode': query_mode
+            })
             # flash('Error executing the SQL query.', 'danger') # REMOVED
         except Exception as e: # Catch any other unexpected errors
             error_message = f"An unexpected error occurred: {e}"
             logger.error(f"Unexpected error in query interface: {e}", exc_info=True)
+            # Log unexpected error
+            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                'connector_id': connector.id if connector else None,
+                'error': error_message,
+                'status': 'failed',
+                'mode': query_mode,
+                'exception_type': type(e).__name__
+            })
             # flash('An unexpected error occurred.', 'danger') # REMOVED
 
 
@@ -256,9 +296,11 @@ Respond ONLY with the SQL query, without any explanation, comments, or markdown 
         if error_message:
             return jsonify({'error': error_message})
         elif results is not None:
+            # Convert NaT/NaN values to None for JSON serialization
+            clean_results = results.where(pd.notnull(results), None)
             return jsonify({
                 'headers': headers,
-                'results': results.to_dict('records'),
+                'results': clean_results.to_dict('records'),
                 'generated_sql': generated_sql
             })
         else:
