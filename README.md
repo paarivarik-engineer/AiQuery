@@ -6,7 +6,7 @@ A Flask-based web application that allows querying multiple database types (Post
 
 ## Features
 
-- Multi-database support (PostgreSQL, MySQL, Oracle)
+- Multi-database support (PostgreSQL, MySQL, Oracle) [Tested only for Postgres at the moment. Others on the way !]
 - Natural language to SQL conversion
 - User authentication and authorization
 - Admin dashboard
