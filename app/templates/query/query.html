@@ -99,9 +99,16 @@
                     }
                 } catch (error) {
                     console.error("AJAX Error:", error);
+                    let errorMsg = error.message;
+                    if (error instanceof SyntaxError && error.message.includes('JSON')) {
+                        errorMsg = 'Invalid data received from server. Please try again.';
+                    } else if (error instanceof TypeError) {
+                        errorMsg = 'An unexpected error occurred. Please refresh and try again.';
+                    }
                     resultsArea.innerHTML = `
                         <div class="alert alert-danger m-3" role="alert">
-                            <strong>Error:</strong> Failed to process request. ${error.message}
+                            <strong>Error:</strong> ${errorMsg}
+                            ${error instanceof SyntaxError ? '<div class="mt-2">Technical details: ' + error.message + '</div>' : ''}
                         </div>
                     `;
                 } finally {
