@@ -5,6 +5,7 @@ from app.query import bp
 from app.query.forms import QueryForm
 from app.models import Connector
 from sqlalchemy import create_engine, text, exc as sqlalchemy_exc, inspect as sqlalchemy_inspect # Added inspect
+import numpy as np
 import pandas as pd
 import os # For reading environment variables
 from openai import OpenAI, OpenAIError # For OpenRouter API call and error handling
@@ -256,9 +257,24 @@ Respond ONLY with the SQL query, without any explanation, comments, or markdown 
         if error_message:
             return jsonify({'error': error_message})
         elif results is not None:
+            # Convert all problematic values (NaN, NaT, etc.) to None
+            clean_results = results.replace([np.nan, pd.NA, None], None)
+            # Ensure all values are JSON serializable
+            serializable_results = []
+            for record in clean_results.to_dict('records'):
+                serializable_record = {}
+                for key, value in record.items():
+                    if pd.isna(value) or value is None:
+                        serializable_record[key] = None
+                    elif isinstance(value, (np.generic, pd.Timestamp)):
+                        serializable_record[key] = str(value)
+                    else:
+                        serializable_record[key] = value
+                serializable_results.append(serializable_record)
+            
             return jsonify({
                 'headers': headers,
-                'results': results.to_dict('records'),
+                'results': serializable_results,
                 'generated_sql': generated_sql
             })
         else:
