@@ -14,6 +14,12 @@ db = SQLAlchemy()
 login = LoginManager()
 login.login_view = 'auth.login' # Redirect to login page if user is not logged in
 login.login_message = 'Please log in to access this page.'
+
+@login.user_loader
+def load_user(id):
+    from app.models import User  # Local import to avoid circular imports
+    return User.query.get(int(id))
+
 migrate = Migrate()
 csrf = CSRFProtect()
 mail = Mail() # Initialize Mail

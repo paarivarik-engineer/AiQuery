@@ -44,6 +44,17 @@ class Connector(db.Model):
     def __repr__(self):
         return f'<Connector {self.name} ({self.db_type.value})>'
 
+    def get_connection_string(self):
+        """Generate a database connection string based on connector settings"""
+        if self.db_type == DatabaseType.POSTGRESQL:
+            return f"postgresql://{self.db_username}:{self.db_password_encrypted}@{self.host}:{self.port}/{self.database}"
+        elif self.db_type == DatabaseType.MYSQL:
+            return f"mysql://{self.db_username}:{self.db_password_encrypted}@{self.host}:{self.port}/{self.database}"
+        elif self.db_type == DatabaseType.ORACLE:
+            return f"oracle://{self.db_username}:{self.db_password_encrypted}@{self.host}:{self.port}/{self.database}"
+        else:
+            raise ValueError(f"Unsupported database type: {self.db_type}")
+
 class AuditActionType(enum.Enum):
     QUERY_EXECUTED = 'query_executed'
     LLM_CALL = 'llm_call'
