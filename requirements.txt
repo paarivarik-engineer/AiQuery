@@ -11,3 +11,4 @@ pandas # For data handling in query results
 email-validator # For WTForms Email validator
 openai # For OpenRouter (OpenAI-compatible API)
 Flask-Mail # For sending password reset emails
+cryptography # For encrypting connector passwords

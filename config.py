@@ -22,6 +22,14 @@ class Config:
     raw_admin_email = config_values.get('ADMIN_EMAIL') or os.environ.get('ADMIN_EMAIL')
     ADMIN_EMAIL = raw_admin_email.strip() if raw_admin_email else None
 
+    # Fernet Encryption Key (MUST be generated and kept secret)
+    # Generate using: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    FERNET_KEY = config_values.get('FERNET_KEY') or os.environ.get('FERNET_KEY')
+    if not FERNET_KEY:
+        print("WARNING: FERNET_KEY not set in .env. Connector password encryption will fail.")
+        # In a real app, you might raise an error here or disable the feature.
+        # raise ValueError("FERNET_KEY is required for encryption but not set in .env")
+
     # Mail Server Configuration (for password reset)
     MAIL_SERVER = os.environ.get('MAIL_SERVER')
     MAIL_PORT = int(os.environ.get('MAIL_PORT') or 25)

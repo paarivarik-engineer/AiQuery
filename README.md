@@ -54,6 +54,7 @@ cd aiquery
 ```bash
 cp .env.example .env
 ```
+   **Important:** Edit the `.env` file and set the required variables, especially `FERNET_KEY` (see Configuration section below).
 
 3. Build and start the containers:
 ```bash
@@ -78,10 +79,16 @@ make up
 
 Edit the `.env` file for environment-specific settings:
 
+- `FLASK_DEBUG`: Set to `1` for development (enables debugger and reloader), **set to `0` for production**. Running with debug enabled in production is a major security risk.
 - `DATABASE_URL`: Database connection string
-- `SECRET_KEY`: Flask secret key
+- `SECRET_KEY`: **Required**. Flask secret key for session security. Change the default placeholder to a long, random string.
 - `OPENROUTER_API_KEY`: API key for OpenRouter service
 - `ADMIN_EMAIL`: Initial admin user email
+- `FERNET_KEY`: **Required** for encrypting database connector passwords. Generate a key using the command:
+  ```bash
+  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  ```
+  Copy the generated key and paste it as the value for `FERNET_KEY` in your `.env` file. Keep this key secret!
 
 ## Project Structure
 
