@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.admin import bp
 from app.admin.decorators import admin_required
-from app.models import User, Connector, AuditLog
+from app.models import User, Connector, AuditLog, AuditActionType # Import AuditActionType enum
 from sqlalchemy.orm import joinedload # To efficiently load connectors with users
 from datetime import datetime, timedelta
 
@@ -36,9 +36,10 @@ def audit_logs():
         .order_by(AuditLog.created_at.desc())
     ).all()
 
-    return render_template('admin/audit_logs.html', 
+    return render_template('admin/audit_logs.html',
                          title='Audit Logs',
                          logs=logs,
-                         days=days)
+                         days=days,
+                         AuditActionType=AuditActionType) # Pass enum to template
 
 # Add other admin actions here later (e.g., delete user, edit user roles)

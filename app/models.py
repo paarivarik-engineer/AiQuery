@@ -4,6 +4,11 @@ from enum import Enum
 import enum
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+# Note: Using password hashing for DB passwords is simple but not ideal.
+# A real application should use proper encryption (e.g., Fernet from cryptography)
+# to allow retrieving the password for connection strings. Hashing is one-way.
+# For this example, we'll proceed with hashing for simplicity, assuming
+# the connection string builder might need adjustment later or password isn't needed directly.
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,17 +46,40 @@ class Connector(db.Model):
 
     user = db.relationship('User', backref='connectors')
 
+    def set_db_password(self, password):
+        """Stores the database password.
+        TODO: Replace plain text storage with proper encryption (e.g., Fernet).
+        """
+        self.db_password_encrypted = password # INSECURE - Storing plain text
+
+    # Optional: Method to retrieve decrypted password (needed with real encryption)
+    # def get_decrypted_db_password(self):
+    #     # TODO: Implement decryption logic here
+    #     # from cryptography.fernet import Fernet
+    #     # key = Config.SECRET_KEY # Or a dedicated encryption key
+    #     # f = Fernet(key)
+    #     # return f.decrypt(self.db_password_encrypted.encode()).decode()
+    #     return self.db_password_encrypted # Return plain text for now
+
     def __repr__(self):
         return f'<Connector {self.name} ({self.db_type.value})>'
 
     def get_connection_string(self):
         """Generate a database connection string based on connector settings"""
+        # Uses the (currently plain text) password stored in db_password_encrypted
+        # TODO: Update to use get_decrypted_db_password() once encryption is implemented
+        password = self.db_password_encrypted # Using plain text for now
+
         if self.db_type == DatabaseType.POSTGRESQL:
-            return f"postgresql://{self.db_username}:{self.db_password_encrypted}@{self.host}:{self.port}/{self.database}"
+             return f"postgresql://{self.db_username}:{password}@{self.host}:{self.port}/{self.database}"
         elif self.db_type == DatabaseType.MYSQL:
-            return f"mysql://{self.db_username}:{self.db_password_encrypted}@{self.host}:{self.port}/{self.database}"
+             # Note: MySQL connector might differ, e.g., mysql+mysqlconnector://
+             return f"mysql+mysqlconnector://{self.db_username}:{password}@{self.host}:{self.port}/{self.database}"
         elif self.db_type == DatabaseType.ORACLE:
-            return f"oracle://{self.db_username}:{self.db_password_encrypted}@{self.host}:{self.port}/{self.database}"
+             # Note: Oracle connection strings can be complex, this is a basic example
+             # May need cx_Oracle format: user/pass@host:port/service_name or SID
+             # For simplicity, using a common pattern. Adjust if needed.
+             return f"oracle+cx_oracle://{self.db_username}:{password}@{self.host}:{self.port}/?service_name={self.database}" # Example using service_name
         else:
             raise ValueError(f"Unsupported database type: {self.db_type}")
 

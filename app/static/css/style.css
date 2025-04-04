@@ -1,9 +1,41 @@
-/* Custom CSS styles can go here */
-body {
-    padding-top: 56px; /* Adjust based on navbar height if fixed-top */
+/* Base Styles */
+:root {
+  --primary: #4361ee;
+  --secondary: #3f37c9;
+  --accent: #4895ef;
+  --light: #f8f9fa;
+  --dark: #212529;
+  --success: #4cc9f0;
+  --warning: #f8961e;
+  --danger: #ef233c;
 }
 
-/* Add more styles as needed */
+body {
+  padding-top: 56px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-color: #f8fafc;
+  color: var(--dark);
+  line-height: 1.6;
+}
+
+/* Modern UI Components */
+.card {
+  border: none;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.btn {
+  transition: all 0.2s ease;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
 
 /* Query Page Layout */
 .query-page-container {
@@ -45,20 +77,52 @@ body {
 }
 
 /* Results Table Styling */
+.query-results-table-container {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
 .query-results-table-container .table {
-    margin-bottom: 0; /* Remove default bottom margin */
-    font-size: 0.9rem; /* Slightly smaller font */
+  margin-bottom: 0;
+  font-size: 0.9rem;
 }
 
 .query-results-table-container thead th {
-    position: sticky; /* Make header sticky */
-    top: 0;           /* Stick to the top of the scrollable container */
-    z-index: 1;       /* Ensure header stays above table body */
-    background-color: #343a40; /* Match table-dark background */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--primary);
+  color: white;
+  font-weight: 500;
+  border: none;
+}
+
+.query-results-table-container tbody tr:nth-child(even) {
+  background-color: rgba(67, 97, 238, 0.05);
 }
 
 .query-results-table-container td,
 .query-results-table-container th {
-    padding: 0.5rem 0.75rem; /* Adjust cell padding */
-    white-space: nowrap;    /* Prevent text wrapping */
+  padding: 0.75rem 1rem;
+  white-space: nowrap;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.query-results-table-container tr:hover td {
+  background-color: rgba(67, 97, 238, 0.1);
+}
+
+/* Loading Animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid rgba(67, 97, 238, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--primary);
+  animation: spin 1s ease-in-out infinite;
 }

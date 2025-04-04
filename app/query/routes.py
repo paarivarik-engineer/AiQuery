@@ -53,6 +53,7 @@ else:
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=openrouter_api_key, # Pass the variable directly
+            timeout=30.0, # Add a 30-second timeout for API calls
         )
         logging.getLogger(__name__).debug("Attempting to list models to verify API key...")
         # Test client connectivity
@@ -109,13 +110,8 @@ def query_interface():
             # Connection successful, proceed based on mode
             if query_mode == 'sql':
                 sql_to_execute = query_input
-                logger.info(f"Executing direct SQL query: {sql_to_execute}")
-                # Log the SQL query execution
-                log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
-                    'connector_id': connector.id,
-                    'query': sql_to_execute,
-                    'mode': 'direct_sql'
-                })
+                logger.info(f"Preparing direct SQL query: {sql_to_execute}")
+                # Note: Actual execution and logging happen later in the common execution block
             elif query_mode == 'nl':
                 logger.info("Processing natural language query...")
                 if not client:
@@ -144,18 +140,148 @@ Translate this natural language question into a single, executable SQL query: "{
 Respond ONLY with the SQL query, without any explanation, comments, or markdown formatting."""
 
                         # 3. Call OpenRouter API
+                        llm_start_time = time.time()
                         current_app.logger.info(f"Sending NL query to OpenRouter model: {openrouter_model}")
-                        completion = client.chat.completions.create(
-                            model=openrouter_model,
-                            messages=[
-                                {"role": "system", "content": "You are an expert SQL generator."},
-                                {"role": "user", "content": prompt},
-                            ],
-                            temperature=0.1, # Lower temperature for more deterministic SQL
-                            max_tokens=500
-                        )
-                        # Log the entire completion object for debugging
-                        logger.debug(f"Raw OpenRouter completion object: {completion}")
+                        try:
+                            completion = client.chat.completions.create(
+                                model=openrouter_model,
+                                messages=[
+                                    {"role": "system", "content": "You are an expert SQL generator."},
+                                    {"role": "user", "content": prompt},
+                                ],
+                                temperature=0.1, # Lower temperature for more deterministic SQL
+                                max_tokens=500
+                            )
+                            llm_end_time = time.time()
+                            llm_duration_ms = int((llm_end_time - llm_start_time) * 1000)
+                            logger.info(f"LLM call completed in {llm_duration_ms}ms")
+                            # Log the entire completion object for debugging
+                            logger.debug(f"Raw OpenRouter completion object: {completion}")
+                        except openai.Timeout as e:
+                            llm_end_time = time.time()
+                            llm_duration_ms = int((llm_end_time - llm_start_time) * 1000)
+                            logger.error(f"OpenRouter API call timed out after {llm_duration_ms}ms: {e}")
+                            error_message = "The AI model took too long to respond. Please try again."
+                            sql_to_execute = None
+                            # Log timeout
+                            log_audit_event(current_user.id, AuditActionType.LLM_CALL, {
+                                'connector_id': connector.id,
+                                'nl_query': query_input,
+                                'model': openrouter_model,
+                                'error': 'API Timeout',
+                                'status': 'failed',
+                                'llm_duration_ms': llm_duration_ms
+                            })
+                            completion = None
+                        except OpenAIError as e:
+                            llm_end_time = time.time()
+                            llm_duration_ms = int((llm_end_time - llm_start_time) * 1000)
+                            logger.error(f"OpenRouter API error after {llm_duration_ms}ms: Status Code: {getattr(e, 'status_code', 'N/A')}, Response: {e.response.text if hasattr(e, 'response') and e.response else 'N/A'}")
+                            # Check specifically for rate limit error (429)
+                            if hasattr(e, 'status_code') and e.status_code == 429:
+                                error_message = "Rate limit exceeded for the AI model. Please wait a moment and try again, or try a different model if the issue persists."
+                            else:
+                                error_message = f"Error communicating with the AI model: {e}"
+                            sql_to_execute = None
+                            # Log failed LLM call attempt
+                            log_audit_event(current_user.id, AuditActionType.LLM_CALL, {
+                                'connector_id': connector.id,
+                                'nl_query': query_input,
+                                'model': openrouter_model,
+                                'error': error_message,
+                                'status': 'failed',
+                                'llm_duration_ms': llm_duration_ms
+                            })
+                            completion = None # Ensure completion is None on error
+                        except Exception as e: # Catch other potential errors during LLM call
+                            llm_end_time = time.time()
+                            llm_duration_ms = int((llm_end_time - llm_start_time) * 1000)
+                            logger.error(f"Error during LLM call after {llm_duration_ms}ms: {e}", exc_info=True)
+                            error_message = f"An unexpected error occurred during AI processing: {e}"
+                            sql_to_execute = None
+                            # Log failed LLM call attempt
+                            log_audit_event(current_user.id, AuditActionType.LLM_CALL, {
+                                'connector_id': connector.id,
+                                'nl_query': query_input,
+                                'model': openrouter_model,
+                                'error': error_message,
+                                'status': 'failed',
+                                'llm_duration_ms': llm_duration_ms,
+                                'exception_type': type(e).__name__
+                            })
+                            completion = None # Ensure completion is None on error
+
+                        # Proceed only if LLM call was successful
+                        if completion and completion.choices and completion.choices[0].message and completion.choices[0].message.content:
+                            generated_sql_raw = completion.choices[0].message.content.strip()
+                            logger.info(f"Received SQL content from OpenRouter: {generated_sql_raw}")
+                        else:
+                            # Error already logged if completion is None due to exception
+                            if completion is not None: # Log error only if completion exists but content is bad
+                                current_app.logger.error("OpenRouter returned empty or invalid response content.")
+                                flash("Failed to get valid SQL from the AI model.", "danger")
+                                # Log failed LLM response parsing
+                                log_audit_event(current_user.id, AuditActionType.LLM_CALL, {
+                                    'connector_id': connector.id,
+                                    'nl_query': query_input,
+                                    'model': openrouter_model,
+                                    'error': 'Invalid or empty response content',
+                                    'status': 'failed',
+                                    'llm_duration_ms': llm_duration_ms
+                                })
+                            sql_to_execute = None
+                            generated_sql = None # Ensure it's None if invalid
+                            generated_sql_raw = None # Ensure raw is also None
+
+                        # Proceed only if we got some SQL
+                        if generated_sql_raw:
+                            logger.debug("Attempting to extract SQL from LLM response...")
+                            # Basic cleanup/extraction (remove potential markdown backticks)
+                            match = re.search(r"```(?:sql)?\s*(.*?)\s*```", generated_sql_raw, re.DOTALL | re.IGNORECASE)
+                            if match:
+                                sql_to_execute = match.group(1).strip()
+                            else:
+                                 sql_to_execute = generated_sql_raw.strip(';').strip() # Remove trailing semicolon if any
+                            
+                            generated_sql = sql_to_execute # Store the cleaned SQL for display
+
+                            # Check if sql_to_execute is valid before calling .upper()
+                            if sql_to_execute and not sql_to_execute.upper().startswith(("SELECT", "WITH")):
+                                 error_message = "Generated query is not a SELECT statement. Execution aborted for safety."
+                                 logger.warning(f"Non-SELECT query generated and blocked: {sql_to_execute}")
+                                 # Log blocked query attempt
+                                 log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                                     'connector_id': connector.id,
+                                     'nl_query': query_input,
+                                     'generated_sql': sql_to_execute,
+                                     'error': error_message,
+                                     'status': 'blocked',
+                                     'mode': query_mode,
+                                     'llm_duration_ms': llm_duration_ms
+                                 })
+                                 sql_to_execute = None # Only execute SELECT for safety
+                            elif sql_to_execute:
+                                 logger.info(f"Generated SQL ready for execution: {sql_to_execute}")
+                            else:
+                                 # Handle cases where generated_sql was empty or became empty after stripping
+                                 error_message = "AI model did not return a valid SQL query."
+                                 logger.warning("Generated SQL was empty or invalid after processing.")
+                                 # Log invalid generated SQL
+                                 log_audit_event(current_user.id, AuditActionType.LLM_CALL, {
+                                     'connector_id': connector.id,
+                                     'nl_query': query_input,
+                                     'model': openrouter_model,
+                                     'raw_response': generated_sql_raw,
+                                     'error': 'Generated SQL invalid/empty after processing',
+                                     'status': 'failed',
+                                     'llm_duration_ms': llm_duration_ms
+                                 })
+                                 sql_to_execute = None
+                        else: # Handle case where generated_sql_raw itself was None from the start
+                             # Error should have been logged during LLM call exception handling
+                             if not error_message: # If no specific error message set yet
+                                 error_message = "AI model failed to generate SQL."
+                             sql_to_execute = None
 
                         # Check if response content exists
                         if completion.choices and completion.choices[0].message and completion.choices[0].message.content:
@@ -217,74 +343,92 @@ Respond ONLY with the SQL query, without any explanation, comments, or markdown 
                 # flash("Invalid query mode selected.", "danger") # REMOVED
                 sql_to_execute = None
 
-            # 4. Execute SQL (if generated or provided and no prior error)
-            if sql_to_execute and not error_message: # Only execute if we have SQL and no errors so far
+            # 4. Execute SQL (if sql_to_execute is valid and no prior critical error)
+            if sql_to_execute and not error_message:
                 logger.info(f"Executing SQL query:\n{sql_to_execute}")
-                execution_engine = create_engine(connection_string) # Use original engine
-                with execution_engine.connect() as connection:
-                    start_time = time.time()
-                    result = connection.execute(text(sql_to_execute))
-                    exec_time = int((time.time() - start_time)*1000)
-                    
-                    if result.returns_rows:
-                        headers = list(result.keys())
-                        results = pd.DataFrame(result.fetchall(), columns=headers)
-                        row_count = len(results)
-                        logger.info(f"Query executed successfully in {exec_time}ms")
-                        logger.info(f"Returned {row_count} rows with columns: {headers}")
-                        logger.debug(f"First row sample: {results.iloc[0].to_dict() if row_count > 0 else 'No rows'}")
-                        
-                        # Log successful query execution
-                        log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+                execution_engine = create_engine(connection_string)
+                sql_start_time = time.time()
+                try:
+                    with execution_engine.connect() as connection:
+                        result = connection.execute(text(sql_to_execute))
+                        sql_end_time = time.time()
+                        sql_duration_ms = int((sql_end_time - sql_start_time) * 1000)
+
+                        audit_details = {
                             'connector_id': connector.id,
                             'query': sql_to_execute,
-                            'execution_time_ms': exec_time,
-                            'row_count': row_count,
-                            'mode': query_mode
-                        })
-                    else:
-                        logger.info(f"Command executed successfully in {exec_time}ms (no rows returned)")
-                        # flash('Command executed successfully (no rows returned).', 'info') # REMOVED
-                execution_engine.dispose() # Dispose execution engine
+                            'sql_duration_ms': sql_duration_ms,
+                            'mode': query_mode,
+                            'status': 'success'
+                        }
+                        if query_mode == 'nl':
+                            audit_details['nl_query'] = query_input
+                            audit_details['llm_duration_ms'] = llm_duration_ms # Add LLM time
+
+                        if result.returns_rows:
+                            headers = list(result.keys())
+                            # Limit rows fetched for performance if needed, e.g., result.fetchmany(1000)
+                            fetched_rows = result.fetchall()
+                            results = pd.DataFrame(fetched_rows, columns=headers)
+                            row_count = len(results)
+                            logger.info(f"Query executed successfully in {sql_duration_ms}ms")
+                            logger.info(f"Returned {row_count} rows with columns: {headers}")
+                            logger.debug(f"First row sample: {results.iloc[0].to_dict() if row_count > 0 else 'No rows'}")
+                            audit_details['row_count'] = row_count
+                        else:
+                            logger.info(f"Command executed successfully in {sql_duration_ms}ms (no rows returned)")
+                            audit_details['row_count'] = 0
+
+                        # Log successful query execution
+                        log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, audit_details)
+
+                except sqlalchemy_exc.SQLAlchemyError as e: # Catch query execution errors specifically
+                    sql_end_time = time.time()
+                    sql_duration_ms = int((sql_end_time - sql_start_time) * 1000)
+                    error_message = f"Query Execution Error: {getattr(e, 'orig', e)}"
+                    logger.error(f"SQLAlchemyError during query execution after {sql_duration_ms}ms: {error_message}")
+                    # Log failed query execution
+                    audit_details = {
+                        'connector_id': connector.id,
+                        'query': sql_to_execute,
+                        'error': error_message,
+                        'status': 'failed',
+                        'mode': query_mode,
+                        'sql_duration_ms': sql_duration_ms
+                    }
+                    if query_mode == 'nl':
+                         audit_details['nl_query'] = query_input
+                         audit_details['llm_duration_ms'] = llm_duration_ms
+                    log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, audit_details)
+                finally:
+                    execution_engine.dispose() # Dispose execution engine
 
                 logger.info("-"*80)
                 logger.info("Query processing completed")
 
-        except sqlalchemy_exc.OperationalError as e: # Catch connection errors first
+        except sqlalchemy_exc.OperationalError as e: # Catch connection errors during initial test
             error_message = f"Connection Failed: {getattr(e, 'orig', e)}"
-            logger.error(f"Database connection failed: {error_message}")
-            # Log failed connection attempt
-            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
+            logger.error(f"Database connection test failed: {error_message}")
+            # Log failed connection attempt (no query executed yet)
+            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, { # Still log as QUERY_EXECUTED for consistency
                 'connector_id': connector.id if connector else None,
-                'error': error_message,
+                'error': f"Connection Test Failed: {error_message}",
                 'status': 'failed',
-                'mode': query_mode
+                'mode': query_mode # Log the intended mode
             })
-            # flash('Failed to connect to database...', 'danger') # REMOVED
-        except sqlalchemy_exc.SQLAlchemyError as e: # Catch query execution errors
-            error_message = f"Query Execution Error: {getattr(e, 'orig', e)}"
-            logger.error(f"SQLAlchemyError during query execution: {error_message}")
-            # Log failed query execution
-            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
-                'connector_id': connector.id,
-                'query': sql_to_execute,
-                'error': error_message,
-                'status': 'failed',
-                'mode': query_mode
-            })
-            # flash('Error executing the SQL query.', 'danger') # REMOVED
-        except Exception as e: # Catch any other unexpected errors
-            error_message = f"An unexpected error occurred: {e}"
-            logger.error(f"Unexpected error in query interface: {e}", exc_info=True)
-            # Log unexpected error
-            log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, {
-                'connector_id': connector.id if connector else None,
-                'error': error_message,
-                'status': 'failed',
-                'mode': query_mode,
-                'exception_type': type(e).__name__
-            })
-            # flash('An unexpected error occurred.', 'danger') # REMOVED
+        except Exception as e: # Catch any other unexpected errors (e.g., during schema fetch before execution)
+            # Avoid logging duplicate errors if already handled in LLM block
+            if not error_message: 
+                error_message = f"An unexpected error occurred: {e}"
+                logger.error(f"Unexpected error in query interface: {e}", exc_info=True)
+                # Log unexpected error
+                log_audit_event(current_user.id, AuditActionType.QUERY_EXECUTED, { # Log as QUERY_EXECUTED
+                    'connector_id': connector.id if connector else None,
+                    'error': error_message,
+                    'status': 'failed',
+                    'mode': query_mode,
+                    'exception_type': type(e).__name__
+                })
 
 
     # Form handling for GET requests

@@ -52,19 +52,47 @@
                 <tr>
                     <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                     <td>{{ log.user.username if log.user else 'System' }}</td>
-                    <td>{{ log.action_type.value }}</td>
+                    <td>{{ log.action_type.value.replace('_', ' ').title() }}</td>
                     <td>
                         {% if log.details %}
-                            {% if log.action_type.value == 'query_executed' %}
-                                <strong>Query:</strong> {{ log.details.get('query', '')|truncate(50) }}<br>
-                                <strong>Mode:</strong> {{ log.details.get('mode', '') }}<br>
-                                {% if 'execution_time_ms' in log.details %}
-                                    <strong>Time:</strong> {{ log.details.execution_time_ms }}ms<br>
+                            {% if log.action_type == AuditActionType.QUERY_EXECUTED %}
+                                {% if log.details.get('mode') == 'nl' %}
+                                    <strong>NL Query:</strong> {{ log.details.get('nl_query', '')|truncate(50) }}<br>
+                                    <strong>Generated SQL:</strong> {{ log.details.get('query', '')|truncate(50) }}<br>
+                                    {% if 'llm_duration_ms' in log.details %}
+                                        <strong>LLM Time:</strong> {{ log.details.llm_duration_ms }}ms<br>
+                                    {% endif %}
+                                    {% if 'sql_duration_ms' in log.details %}
+                                        <strong>SQL Time:</strong> {{ log.details.sql_duration_ms }}ms<br>
+                                    {% endif %}
+                                {% else %} {# SQL Mode #}
+                                    <strong>Query:</strong> {{ log.details.get('query', '')|truncate(50) }}<br>
+                                    {% if 'sql_duration_ms' in log.details %}
+                                        <strong>SQL Time:</strong> {{ log.details.sql_duration_ms }}ms<br>
+                                    {% endif %}
                                 {% endif %}
                                 {% if 'row_count' in log.details %}
                                     <strong>Rows:</strong> {{ log.details.row_count }}<br>
                                 {% endif %}
-                            {% else %}
+                                {% if log.details.get('status') == 'failed' or log.details.get('status') == 'blocked' %}
+                                    <strong class="text-danger">Status:</strong> <span class="text-danger">{{ log.details.get('status').title() }}</span><br>
+                                    {% if log.details.get('error') %}
+                                        <strong class="text-danger">Error:</strong> <span class="text-danger">{{ log.details.get('error')|truncate(100) }}</span><br>
+                                    {% endif %}
+                                {% endif %}
+                            {% elif log.action_type == AuditActionType.LLM_CALL %}
+                                <strong>NL Query:</strong> {{ log.details.get('nl_query', '')|truncate(50) }}<br>
+                                <strong>Model:</strong> {{ log.details.get('model', '') }}<br>
+                                {% if 'llm_duration_ms' in log.details %}
+                                    <strong>LLM Time:</strong> {{ log.details.llm_duration_ms }}ms<br>
+                                {% endif %}
+                                {% if log.details.get('status') == 'failed' %}
+                                    <strong class="text-danger">Status:</strong> <span class="text-danger">{{ log.details.get('status').title() }}</span><br>
+                                    {% if log.details.get('error') %}
+                                        <strong class="text-danger">Error:</strong> <span class="text-danger">{{ log.details.get('error')|truncate(100) }}</span><br>
+                                    {% endif %}
+                                {% endif %}
+                            {% else %} {# Other action types #}
                                 {{ log.details|tojson|safe }}
                             {% endif %}
                         {% endif %}
