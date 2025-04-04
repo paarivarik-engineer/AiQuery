@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Audit Logs</h1>
+
+    {% block admin_nav %}
+    <nav>
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link" href="{{ url_for('admin.index') }}">Users</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link active" href="{{ url_for('admin.audit_logs') }}">Audit Logs</a>
+            </li>
+        </ul>
+    </nav>
+    {% endblock %}
+    
+    <div class="card">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <form class="form-inline">
+                        <div class="input-group">
+                            <label class="input-group-text" for="days">Show logs from last:</label>
+                            <select name="days" id="days" class="form-select" onchange="this.form.submit()">
+                                <option value="1" {% if days == 1 %}selected{% endif %}>1 day</option>
+                                <option value="7" {% if days == 7 %}selected{% endif %}>7 days</option>
+                                <option value="30" {% if days == 30 %}selected{% endif %}>30 days</option>
+                                <option value="90" {% if days == 90 %}selected{% endif %}>90 days</option>
+                                <option value="0" {% if days == 0 %}selected{% endif %}>All time</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.user.username if log.user else 'System' }}</td>
+                    <td>{{ log.action_type.value.replace('_', ' ').title() }}</td>
+                    <td>
+                        {% if log.details %}
+                            {% if log.action_type == AuditActionType.QUERY_EXECUTED %}
+                                {% if log.details.get('mode') == 'nl' %}
+                                    <strong>NL Query:</strong> {{ log.details.get('nl_query', '')|truncate(50) }}<br>
+                                    <strong>Generated SQL:</strong> {{ log.details.get('query', '')|truncate(50) }}<br>
+                                    {% if 'llm_duration_ms' in log.details %}
+                                        <strong>LLM Time:</strong> {{ log.details.llm_duration_ms }}ms<br>
+                                    {% endif %}
+                                    {% if 'sql_duration_ms' in log.details %}
+                                        <strong>SQL Time:</strong> {{ log.details.sql_duration_ms }}ms<br>
+                                    {% endif %}
+                                {% else %} {# SQL Mode #}
+                                    <strong>Query:</strong> {{ log.details.get('query', '')|truncate(50) }}<br>
+                                    {% if 'sql_duration_ms' in log.details %}
+                                        <strong>SQL Time:</strong> {{ log.details.sql_duration_ms }}ms<br>
+                                    {% endif %}
+                                {% endif %}
+                                {% if 'row_count' in log.details %}
+                                    <strong>Rows:</strong> {{ log.details.row_count }}<br>
+                                {% endif %}
+                                {% if log.details.get('status') == 'failed' or log.details.get('status') == 'blocked' %}
+                                    <strong class="text-danger">Status:</strong> <span class="text-danger">{{ log.details.get('status').title() }}</span><br>
+                                    {% if log.details.get('error') %}
+                                        <strong class="text-danger">Error:</strong> <span class="text-danger">{{ log.details.get('error')|truncate(100) }}</span><br>
+                                    {% endif %}
+                                {% endif %}
+                            {% elif log.action_type == AuditActionType.LLM_CALL %}
+                                <strong>NL Query:</strong> {{ log.details.get('nl_query', '')|truncate(50) }}<br>
+                                <strong>Model:</strong> {{ log.details.get('model', '') }}<br>
+                                {% if 'llm_duration_ms' in log.details %}
+                                    <strong>LLM Time:</strong> {{ log.details.llm_duration_ms }}ms<br>
+                                {% endif %}
+                                {% if log.details.get('status') == 'failed' %}
+                                    <strong class="text-danger">Status:</strong> <span class="text-danger">{{ log.details.get('status').title() }}</span><br>
+                                    {% if log.details.get('error') %}
+                                        <strong class="text-danger">Error:</strong> <span class="text-danger">{{ log.details.get('error')|truncate(100) }}</span><br>
+                                    {% endif %}
+                                {% endif %}
+                            {% else %} {# Other action types #}
+                                {{ log.details|tojson|safe }}
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>{{ log.ip_address }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">No audit logs found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}
