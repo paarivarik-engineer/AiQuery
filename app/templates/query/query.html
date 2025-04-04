@@ -13,6 +13,31 @@
             const resultsArea = document.querySelector('.query-results-area .card-body');
             const modeSelect = document.getElementById('query_mode');
             const queryInput = document.getElementById('query_input');
+            const connectorSelect = document.getElementById('connector');
+
+            // Disable submit button by default
+            if (submitBtn) {
+                submitBtn.disabled = true;
+            }
+
+            // Handle connector selection changes
+            if (connectorSelect && submitBtn) { // Ensure both elements exist
+                const updateSubmitBtnState = () => {
+                    // Disable if no value or if the value is '0' (assuming '0' might be a placeholder like "-- Select --")
+                    const isConnectorSelected = connectorSelect.value && connectorSelect.value !== '0'; 
+                    submitBtn.disabled = !isConnectorSelected;
+                };
+                
+                // Set initial state correctly AFTER potentially disabling it first
+                submitBtn.disabled = true; // Explicitly disable first
+                updateSubmitBtnState(); // Then check current selection
+
+                connectorSelect.addEventListener('change', updateSubmitBtnState);
+            } else if (submitBtn) {
+                 // If no connector select, keep button disabled (or handle differently if needed)
+                 console.warn("Connector select element not found, keeping submit disabled.");
+                 submitBtn.disabled = true;
+            }
 
             // Verify all required elements exist
             if (!form || !submitBtn || !resultsArea) {

@@ -9,8 +9,22 @@ A Flask-based web application that allows querying multiple database types (Post
 - Multi-database support (PostgreSQL, MySQL, Oracle) [Tested only for Postgres at the moment. Others on the way !]
 - Natural language to SQL conversion
 - User authentication and authorization
-- Admin dashboard
+- Admin dashboard features:
+  * User management
+  * Detailed audit logging with:
+    - Action tracking (queries, logins, admin actions)
+    - Time-based filtering
+    - User activity monitoring
 - Dockerized development environment
+
+## Database Configuration
+
+- **Development**: SQLite database (`app.db`) for easy local testing
+- **Production**: PostgreSQL in Docker for:
+  * Better performance
+  * Concurrent connections
+  * Data persistence
+  * Scaling capabilities
 
 ## Tech Stack
 
