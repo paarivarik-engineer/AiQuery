@@ -61,7 +61,7 @@ make init
 make up
 ```
 
-4. Access the application at: http://localhost:5000
+4. Access the application at: http://localhost:5001
 
 ## Usage
 
