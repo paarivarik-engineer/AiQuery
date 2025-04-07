@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, text, exc as sqlalchemy_exc, inspect as sq
 import numpy as np
 import pandas as pd
 import os # For reading environment variables
-from openai import OpenAI, OpenAIError # For OpenRouter API call and error handling
+from openai import OpenAI, OpenAIError, Timeout # For OpenRouter API call and error handling
 import re # For extracting SQL from LLM response
 import logging # Import standard logging
 import time # For timing operations
@@ -157,7 +157,7 @@ Respond ONLY with the SQL query, without any explanation, comments, or markdown 
                             logger.info(f"LLM call completed in {llm_duration_ms}ms")
                             # Log the entire completion object for debugging
                             logger.debug(f"Raw OpenRouter completion object: {completion}")
-                        except openai.Timeout as e:
+                        except Timeout as e: # Use the directly imported Timeout exception
                             llm_end_time = time.time()
                             llm_duration_ms = int((llm_end_time - llm_start_time) * 1000)
                             logger.error(f"OpenRouter API call timed out after {llm_duration_ms}ms: {e}")
