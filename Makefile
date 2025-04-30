@@ -1,6 +1,10 @@
-.PHONY: init db migrate up down test clean
+.PHONY: init db migrate up down test clean generate-key
 
-init: 
+generate-key:
+	@echo "Generating Fernet key (copy this to your .env file):"
+	@python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+init:
 	@echo "Initializing project..."
 	@echo "1. Ensuring clean state..."
 	@docker-compose down -v --remove-orphans --timeout 30 >/dev/null 2>&1 || true

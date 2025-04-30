@@ -8,8 +8,15 @@ We welcome contributions from the community! Here's how you can help:
 2. Clone your fork locally
 3. Set up development environment:
 ```bash
-make init
-make up
+# First, copy the example environment file and configure it
+cp .env.example .env 
+# --> Edit .env and set required variables like FERNET_KEY (see README.md) <--
+
+# Then, initialize the project (builds containers, runs migrations)
+make init 
+
+# Finally, start the application
+make up 
 ```
 
 ## Development Workflow
